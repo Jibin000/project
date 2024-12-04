@@ -1,0 +1,30 @@
+import os
+import shutil
+from sklearn.model_selection import train_test_split
+
+# 원본 라벨링 데이터 경로
+src_dir = '/content/drive/MyDrive/project_data/data/sample/labeled'
+# 분할된 데이터 저장 경로
+dest_dir = '/content/drive/MyDrive/project_data/data/sample'
+
+# 클래스 및 장기 리스트
+organs = ['대장', '위']
+classes = ['궤양', '암', '용종']
+
+# 데이터 분할 비율
+train_ratio = 0.7
+val_ratio = 0.2
+test_ratio = 0.1
+
+for organ in organs:
+    for cls in classes:
+        img_dir = os.path.join(src_dir, organ, cls)
+        images = os.listdir(img_dir)
+        train_imgs, temp_imgs = train_test_split(images, test_size=(val_ratio + test_ratio))
+        val_imgs, test_imgs = train_test_split(temp_imgs, test_size=(test_ratio / (val_ratio + test_ratio)))
+
+        for split, split_imgs in zip(['train', 'val', 'test'], [train_imgs, val_imgs, test_imgs]):
+            split_dir = os.path.join(dest_dir, split, organ, cls)
+            os.makedirs(split_dir, exist_ok=True)
+            for img in split_imgs:
+                shutil.copy(os.path.join(img_dir, img), os.path.join(split_dir, img))
