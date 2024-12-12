@@ -1,30 +1,288 @@
+# 데이터 불러오기
+from google.colab import drive
+import os
+drive.mount('/content/drive')
+import zipfile
+
+# 데이터 개수 확인(라벨링된 데이터)
+import os
+
+label_base_dir = "/content/drive/MyDrive/project_data/data/sample/labeled"  
+
+# 대장, 위 폴더 안의 용종, 암, 궤양 파일 개수 출력
+def count_files_in_directory(directory):
+    
+    file_count = 0
+    for root, dirs, files in os.walk(directory):
+        file_count += len(files)  # 파일 개수 추가
+    return file_count
+
+categories = ['대장', '위']
+lesion_types = ['용종', '암', '궤양']
+
+for category in categories:
+    print(f"{category} 폴더 내 파일 개수:")
+    for lesion in lesion_types:
+        
+        label_dir = os.path.join(label_base_dir, category, lesion)
+        if os.path.exists(label_dir):  # 해당 경로가 존재하는지 확인
+            file_count = count_files_in_directory(label_dir)
+            print(f"  {lesion}: {file_count}개")
+        else:
+            print(f"  {lesion}: 해당 폴더 없음")
+
+
+# 데이터 분할 하기 
 import os
 import shutil
 from sklearn.model_selection import train_test_split
 
-# 원본 라벨링 데이터 경로
 src_dir = '/content/drive/MyDrive/project_data/data/sample/labeled'
 # 분할된 데이터 저장 경로
-dest_dir = '/content/drive/MyDrive/project_data/data/sample'
+dest_dir = '/content/drive/MyDrive/project_data/data/sample/sample_1'
 
 # 클래스 및 장기 리스트
 organs = ['대장', '위']
 classes = ['궤양', '암', '용종']
 
-# 데이터 분할 비율
-train_ratio = 0.7
+# 훈련/검증 데이터 분할 비율
+train_ratio = 0.8
 val_ratio = 0.2
+
+for organ in organs:
+    for cls in classes:
+        img_dir = os.path.join(src_dir, organ, cls)
+        images = os.listdir(img_dir)
+        train_imgs, val_imgs = train_test_split(images, test_size=val_ratio)
+
+        for split, split_imgs in zip(['train', 'val'], [train_imgs, val_imgs]):
+            split_dir = os.path.join(dest_dir, split, organ, cls)
+            os.makedirs(split_dir, exist_ok=True)
+            for img in split_imgs:
+                shutil.copy(os.path.join(img_dir, img), os.path.join(split_dir, img))
+
+
+# 라벨링 되지 않은 원천데이터에서 테스트 데이터 분할
+import os
+import shutil
+from sklearn.model_selection import train_test_split
+
+src_dir = '/content/drive/MyDrive/project_data/data/sample/원천데이터'
+# 테스트 데이터 저장 경로
+dest_dir = '/content/drive/MyDrive/project_data/data/sample/sample_1'
+
+# 클래스 및 장기 리스트
+organs = ['대장', '위']
+classes = ['궤양', '암', '용종']
+
+# 테스트 데이터 비율
 test_ratio = 0.1
 
 for organ in organs:
     for cls in classes:
         img_dir = os.path.join(src_dir, organ, cls)
         images = os.listdir(img_dir)
-        train_imgs, temp_imgs = train_test_split(images, test_size=(val_ratio + test_ratio))
-        val_imgs, test_imgs = train_test_split(temp_imgs, test_size=(test_ratio / (val_ratio + test_ratio)))
 
-        for split, split_imgs in zip(['train', 'val', 'test'], [train_imgs, val_imgs, test_imgs]):
-            split_dir = os.path.join(dest_dir, split, organ, cls)
-            os.makedirs(split_dir, exist_ok=True)
-            for img in split_imgs:
-                shutil.copy(os.path.join(img_dir, img), os.path.join(split_dir, img))
+        # 테스트 데이터 샘플링
+        test_imgs, _ = train_test_split(images, test_size=(1 - test_ratio))
+
+        # 테스트 데이터 저장
+        test_dir = os.path.join(dest_dir, 'test', organ, cls)
+        os.makedirs(test_dir, exist_ok=True)
+        for img in test_imgs:
+            shutil.copy(os.path.join(img_dir, img), os.path.join(test_dir, img))
+
+# 훈련/ 검증 데이터 구조 변경 (ex: 대장 폴더 안 궤양 -> 대장_궤양)
+import os
+import shutil
+
+base_dir = '/content/drive/MyDrive/project_data/data/sample/sample_1'
+
+splits = ['train', 'val']
+
+# 장기와 클래스 정의
+organs = ['대장', '위']
+classes = ['궤양', '암', '용종']
+
+# 새 폴더 구조 생성 함수
+def restructure_folders(base_dir, splits, organs, classes):
+    for split in splits:
+        split_dir = os.path.join(base_dir, split)
+        if not os.path.exists(split_dir):
+            print(f"{split_dir} 경로가 없습니다. 건너뜁니다.")
+            continue
+
+        print(f"=== {split.upper()} 데이터 구조 수정 중 ===")
+        for organ in organs:
+            organ_dir = os.path.join(split_dir, organ)
+            if not os.path.exists(organ_dir):
+                print(f"{organ_dir} 경로가 없습니다. 건너뜁니다.")
+                continue
+
+            for cls in classes:
+                src_dir = os.path.join(organ_dir, cls)
+                if os.path.exists(src_dir):
+                    # 새로운 클래스 폴더 이름 생성 (예: "대장_궤양")
+                    new_cls_dir = os.path.join(split_dir, f"{organ}_{cls}")
+                    os.makedirs(new_cls_dir, exist_ok=True)
+
+                    # 이미지 파일을 새 폴더로 이동
+                    for filename in os.listdir(src_dir):
+                        src_file = os.path.join(src_dir, filename)
+                        dest_file = os.path.join(new_cls_dir, filename)
+                        shutil.move(src_file, dest_file)
+
+                    print(f"{src_dir} -> {new_cls_dir} 이동 완료.")
+
+                # 빈 폴더 삭제
+                if os.path.exists(src_dir) and not os.listdir(src_dir):
+                    os.rmdir(src_dir)
+
+            # 상위 장기 폴더 삭제 (비어 있으면)
+            if os.path.exists(organ_dir) and not os.listdir(organ_dir):
+                os.rmdir(organ_dir)
+        print(f"{split.upper()} 데이터 구조 수정 완료.\n")
+
+# 실행
+restructure_folders(base_dir, splits, organs, classes)
+
+# 테스트 데이터 구조 위와 동일하게 변경
+import os
+import shutil
+
+base_dir = '/content/drive/MyDrive/project_data/data/sample/sample_1'
+
+
+splits = ['test']
+
+# 장기와 클래스 정의
+organs = ['대장', '위']
+classes = ['궤양', '암', '용종']
+
+# 새 폴더 구조 생성 함수
+def restructure_folders(base_dir, splits, organs, classes):
+    for split in splits:
+        split_dir = os.path.join(base_dir, split)
+        if not os.path.exists(split_dir):
+            print(f"{split_dir} 경로가 없습니다. 건너뜁니다.")
+            continue
+
+        print(f"=== {split.upper()} 데이터 구조 수정 중 ===")
+        for organ in organs:
+            organ_dir = os.path.join(split_dir, organ)
+            if not os.path.exists(organ_dir):
+                print(f"{organ_dir} 경로가 없습니다. 건너뜁니다.")
+                continue
+
+            for cls in classes:
+                src_dir = os.path.join(organ_dir, cls)
+                if os.path.exists(src_dir):
+                    # 새로운 클래스 폴더 이름 생성 (예: "대장_궤양")
+                    new_cls_dir = os.path.join(split_dir, f"{organ}_{cls}")
+                    os.makedirs(new_cls_dir, exist_ok=True)
+
+                    # 이미지 파일을 새 폴더로 이동
+                    for filename in os.listdir(src_dir):
+                        src_file = os.path.join(src_dir, filename)
+                        dest_file = os.path.join(new_cls_dir, filename)
+                        shutil.move(src_file, dest_file)
+
+                    print(f"{src_dir} -> {new_cls_dir} 이동 완료.")
+
+                # 빈 폴더 삭제
+                if os.path.exists(src_dir) and not os.listdir(src_dir):
+                    os.rmdir(src_dir)
+
+            # 상위 장기 폴더 삭제 (비어 있으면)
+            if os.path.exists(organ_dir) and not os.listdir(organ_dir):
+                os.rmdir(organ_dir)
+        print(f"{split.upper()} 데이터 구조 수정 완료.\n")
+
+# 실행
+restructure_folders(base_dir, splits, organs, classes)
+
+
+# 최종 데이터 개수 확인
+import os
+
+# 데이터 경로
+dest_dir = '/content/drive/MyDrive/project_data/data/sample/sample_1'
+
+# 데이터 분할 확인
+splits = ['train', 'val','test']
+
+print("===== 데이터셋 분할 개수 확인 =====")
+for split in splits:
+    split_dir = os.path.join(dest_dir, split)
+    if not os.path.exists(split_dir):
+        print(f"{split.upper()} 폴더가 존재하지 않습니다.")
+        continue
+
+    print(f"=== {split.upper()} 데이터 ===")
+    total_count = 0
+    for cls in os.listdir(split_dir):  # 클래스 폴더 탐색
+        cls_path = os.path.join(split_dir, cls)
+        if not os.path.isdir(cls_path):
+            continue  # 폴더가 아닌 경우 무시
+        count = len(os.listdir(cls_path))  # 이미지 파일 개수 확인
+        print(f"{cls}: {count}개")
+        total_count += count
+    print(f">>> {split.upper()} 전체 이미지 수: {total_count}개\n")
+
+
+import os
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms, models
+from sklearn.metrics import classification_report, confusion_matrix
+
+
+# 하이퍼파라미터 설정
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+batch_size = 32
+num_epochs = 10
+learning_rate = 0.001
+data_dir = "/content/drive/MyDrive/project_data/data/sample/sample_1"  
+
+
+# 학습데이터 랜덤크롭, 랜덤 좌우반전 후 이미지 정규화
+# 검증/훈련 데이터 크기 조정, 크롭 후 정규화
+transform = {
+    "train": transforms.Compose([
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    "val": transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    "test": transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+}
+
+# 데이터셋 정의
+datasets_dict = {
+    x: datasets.ImageFolder(os.path.join(data_dir, x), transform=transform[x])
+    for x in ["train", "val", "test"]
+}
+
+dataloaders = {
+    x: DataLoader(datasets_dict[x], batch_size=batch_size, shuffle=(x == "train"))
+    for x in ["train", "val", "test"]
+}
+
+class_names = datasets_dict["train"].classes
+
+
+
+
